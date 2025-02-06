@@ -4,26 +4,23 @@ from train import Train
 from usb_controller import USBController
 from bricknil import start
 
-async def handle_controller_input(buttons):
+def handle_controller_input(buttons):
     print(f"Controller Input: {buttons}")  # Debugging: Show button presses
 
-
-# Define the system function for Bricknil (as required)
 async def system():
     hub = Train('train', False)  # Create train instance
     return hub  # Ensure this returns the instance for Bricknil
 
+async def run_bricknil():
+    """Run Bricknil without blocking the Curio event loop."""
+    await start(system)
 
 async def main():
+    usb_controller = USBController(handle_controller_input)
+
     async with TaskGroup() as group:
-        
-        print("Starting USB controller...")  # Debugging: Should appear next
-        controller = USBController(handle_controller_input)
-        await group.spawn(controller.listen_for_input)  # Start USB input listener
-
-        print("Starting train system...")  # Debugging: Should appear first
-        await group.spawn(start, system)  # Start Bricknil train system
-
+        await group.spawn(curio.run_in_thread, usb_controller.listen_for_input)  # Run USB listener in thread
+        await group.spawn(run_bricknil)  # Run Bricknil concurrently
 
 if __name__ == '__main__':
-    curio.run(main)
+    curio.run(main())  # Ensure Curio properly runs the async main function

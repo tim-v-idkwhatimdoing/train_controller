@@ -1,5 +1,6 @@
 import hid
 import time
+import threading
 
 class USBController:
     VENDOR_ID = 3853  
@@ -16,7 +17,9 @@ class USBController:
 
     def __init__(self, callback):
         self.callback = callback  # Function to handle button presses
-        self.device = hid.device()
+        self.device = None
+        self.running = False  # Initialize running state
+        self.previous_data = None  # Store last read data
 
     def get_alt_buttons(self, byte_value):
         """ Decode button presses from byte value. """
@@ -29,50 +32,57 @@ class USBController:
         up_down = data[4]
         left_right = data[3]
 
+        pressed_updown = "neutral"
         if up_down == 0:
             pressed_updown = "up"
         elif up_down == 255:
             pressed_updown = "down"
-        else:
-            pressed_updown = "neutral"
 
+        pressed_leftright = "neutral"
         if left_right == 0:
             pressed_leftright = "left"
         elif left_right == 255:
             pressed_leftright = "right"
-        else:
-            pressed_leftright = "neutral"
 
         return [pressed_updown, pressed_leftright, pressed_alt_buttons]
 
-    async def listen_for_input(self):
-        """ Continuously read input from the USB controller. """
-        try:
-            self.device.open(self.VENDOR_ID, self.PRODUCT_ID)
-            print("✅ USB Controller Connected")
+    def listen_for_input(self):
+        """Run in a separate thread to avoid conflicts with Bricknil/Curio."""
+        print("Initializing USB Controller in separate thread...")
+        self.running = True  # Ensure running is set to True
+        
+        while self.running:
+            try:
+                if not self.device:
+                    print("Attempting to open USB device...")
+                    self.device = hid.device()
+                    self.device.open(self.VENDOR_ID, self.PRODUCT_ID)
+                    self.device.set_nonblocking(True)
 
-            self.device.set_nonblocking(True)
-            previous_data = None
-
-            while True:
                 data = self.device.read(64)
+                if data and data != self.previous_data:
+                    buttons_pressed = self.get_directional_buttons(data)
+                    print(f"🟢 Processed Input: {buttons_pressed}")  # Debugging
+                    self.previous_data = data
 
-                if data:
-                    print(f"🟡 Raw Data Received: {data}")  # Debugging raw input data
+                    if self.callback:
+                        self.callback(buttons_pressed)  # Direct call, no async needed
+                
+                time.sleep(0.08)  # Prevent flooding
 
-                    if data != previous_data:
-                        buttons_pressed = self.get_directional_buttons(data)
-                        print(f"🟢 Processed Input: {buttons_pressed}")  # Show processed buttons
-                        previous_data = data
+            except KeyboardInterrupt:
+                print("Keyboard interrupt detected, shutting down USB controller...")
+                self.running = False  # Exit loop
 
-                        if self.callback:
-                            await self.callback(buttons_pressed)
+            except Exception as e:
+                print(f"Error reading from USB device: {e}")
+                if self.device:
+                    self.device.close()
+                    self.device = None  # Reset device to allow re-initialization
+                time.sleep(1)  # Wait before retrying
 
-                time.sleep(0.08)  # Slight delay to prevent flooding
-
-        except Exception as e:
-            print(f"❌ Error in USBController: {e}")
-
-        finally:
-            self.device.close()
-            print("🔴 USB Controller Disconnected")
+    def start(self):
+        """Start the USB listener in a new thread."""
+        if not self.running:
+            thread = threading.Thread(target=self.listen_for_input, daemon=True)
+            thread.start()
