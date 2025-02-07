@@ -4,8 +4,18 @@ from train import Train
 from usb_controller import USBController
 from bricknil import start
 
+controller_queue = curio.Queue()  # Shared queue between threads
+
 def handle_controller_input(buttons):
-    print(f"Controller Input: {buttons}")  # Debugging: Show button presses
+    #print(f"Controller Input: {buttons}")
+    curio.run(controller_queue.put(buttons))  # Send input to queue (must be called from an async context)
+
+async def process_controller_input():
+    """ Continuously process controller input from the queue """
+    while True:
+        buttons = await controller_queue.get()  # Retrieve button input
+        print(f"Processing: {buttons}")  # Example processing
+        # Send this data to your Train instance if needed
 
 async def system():
     hub = Train('train', False)  # Create train instance
