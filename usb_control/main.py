@@ -1,36 +1,64 @@
+# main.py
 import curio
+import logging
 from curio import TaskGroup
 from train import Train
 from usb_controller import USBController
 from bricknil import start
 
-controller_queue = curio.Queue()  # Shared queue between threads
+# Create a queue for communication between threads/tasks
+controller_queue = curio.Queue()
 
-def handle_controller_input(buttons):
-    #print(f"Controller Input: {buttons}")
-    curio.run(controller_queue.put(buttons))  # Send input to queue (must be called from an async context)
-
-async def process_controller_input():
-    """ Continuously process controller input from the queue """
-    while True:
-        buttons = await controller_queue.get()  # Retrieve button input
-        print(f"Processing: {buttons}")  # Example processing
-        # Send this data to your Train instance if needed
+async def handle_controller_input(buttons):
+    """Async function to handle controller input"""
+    #print("handle_controller_input")
+    await controller_queue.put(buttons)
+    logging.info("Successfully queued buttons")
 
 async def system():
-    hub = Train('train', False)  # Create train instance
-    return hub  # Ensure this returns the instance for Bricknil
-
-async def run_bricknil():
-    """Run Bricknil without blocking the Curio event loop."""
-    await start(system)
+    """Initialize the train system"""
+    logging.info("Initializing train system")
+    hub = Train('train', False)
+    hub.controller_queue = controller_queue
+    logging.info("Train system initialized with queue")
+    return hub
 
 async def main():
-    usb_controller = USBController(handle_controller_input)
-
-    async with TaskGroup() as group:
-        await group.spawn(curio.run_in_thread, usb_controller.listen_for_input)  # Run USB listener in thread
-        await group.spawn(run_bricknil)  # Run Bricknil concurrently
+    """Main async function coordinating all components"""
+    try:
+        # Initialize USB controller with async callback
+        logging.info("Creating USB controller")
+        usb_controller = USBController(handle_controller_input)
+        
+        # Start the USB controller
+        logging.info("Starting USB controller")
+        usb_controller.start()
+        print
+        
+        # Give USB controller a moment to initialize
+        await curio.sleep(1)
+        
+        logging.info("Starting Bricknil system")
+        result = await start(system)
+        
+        # Keep the main task running
+        while True:
+            await curio.sleep(1)
+            
+    except Exception as e:
+        logging.error(f"Error in main: {e}")
+        raise
 
 if __name__ == '__main__':
-    curio.run(main())  # Ensure Curio properly runs the async main function
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    
+    with curio.Kernel() as kernel:
+        try:
+            kernel.run(main, shutdown=True)
+        except KeyboardInterrupt:
+            logging.info("Shutting down gracefully...")
+        except Exception as e:
+            logging.error(f"Fatal error: {e}")

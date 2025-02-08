@@ -23,12 +23,69 @@ with open(json_file_path2, 'r') as file:
 class Train(DuploTrainHub):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.pause = False        # Dont stop the train just pause
+        self.controller_queue = curio.Queue()
+        self.pause = False
         self.waiting_for_movement = True
         self.speed = 0
-        #self.direction = "forward"
+        self.direction = "forward"
 
-    #sounds = brake: 3, station: 5, water: 7, horn: 9, steam: 10
+    """async def check_controller_queue(self):
+        "Check for any pending controller input"
+        if self.controller_queue:
+            try:
+                # Use a very short timeout to make it effectively non-blocking
+                print("In the controller queue")
+                buttons = await curio.timeout_after(0.1, self.controller_queue.get)
+                direction = buttons[0]  # up/down
+                turn = buttons[1]       # left/right
+                alt_buttons = buttons[2]  # other buttons
+                
+                logging.info(f"Processing controller input: {buttons}")
+                
+                if direction == "up":
+                    self.direction = "forward"
+                    await self.set_speed(75, 250, "manual control")
+                elif direction == "down":
+                    self.direction = "reverse"
+                    await self.set_speed(-75, 250, "manual control")
+                elif direction == "neutral":
+                    await self.set_speed(0, 250, "manual control")
+            except curio.TaskTimeout:
+                # This is expected when there's no input
+                pass
+            except Exception as e:
+                logging.error(f"Error processing controller input: {e}")"""
+
+  
+    async def check_controller_queue(self):
+        """Check for any pending controller input."""
+        while True:  # Keep checking the queue
+            if self.controller_queue:
+                try:
+                    # Fetch button press data with a short timeout
+                    buttons = await curio.timeout_after(0.1, self.controller_queue.get)
+                    print(f"🎮 Received from queue: {buttons}")  # ✅ Debug print
+                
+                    direction = buttons[0]  # up/down
+                    turn = buttons[1]       # left/right
+                    alt_buttons = buttons[2]  # other buttons
+                    
+                    logging.info(f"Processing controller input: {buttons}")
+                
+                    if direction == "up":
+                        self.direction = "forward"
+                        await self.set_speed(75, 250, "manual control")
+                    elif direction == "down":
+                        self.direction = "reverse"
+                        await self.set_speed(-75, 250, "manual control")
+                    elif direction == "neutral":
+                        await self.set_speed(0, 250, "manual control")
+
+                except curio.TaskTimeout:
+                    pass  # No input, continue checking
+                    print("⏳ Queue timeout: No input received in 0.1 sec")
+                except Exception as e:
+                    logging.error(f"Error processing controller input: {e}")
 
     async def speed_sensor_change(self):
         self.speed = self.speed_sensor.value[DuploSpeedSensor.capability.sense_speed]
@@ -50,8 +107,10 @@ class Train(DuploTrainHub):
 
     async def run(self):
         while True:
+            # Check for controller input
+            await self.check_controller_queue()
+            
             if self.waiting_for_movement:
-                #print("Waiting for push...")
                 await sleep(.08)
                 if abs(self.speed) > 5:
                     self.waiting_for_movement = False
@@ -69,6 +128,4 @@ class Train(DuploTrainHub):
                 print("Stopped, waiting for movement")
                 self.waiting_for_movement = True
             await sleep(.1)
-
-        self.message_info("Done")
-
+         
