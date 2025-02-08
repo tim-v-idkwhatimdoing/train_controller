@@ -3,6 +3,7 @@ import time
 import threading
 import logging
 import curio
+    
 
 
 class USBController:
@@ -60,8 +61,6 @@ class USBController:
             except Exception as e:
                 logging.error(f"Error in callback: {e}")
 
-
-
     def listen_for_input(self):
         print("Initializing USB Controller in separate thread...")
         self.running = True
@@ -78,7 +77,7 @@ class USBController:
                 data = self.device.read(64)
                 if data and data != self.previous_data:
                     buttons_pressed = self.get_directional_buttons(data)
-                    #logging.info(f"USB Input detected: {buttons_pressed}")
+                    logging.info(f"USB Input detected: {buttons_pressed}")
                     self.previous_data = data
                     if self.callback:
                         try:

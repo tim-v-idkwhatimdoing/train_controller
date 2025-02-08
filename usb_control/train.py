@@ -16,6 +16,8 @@ json_file_path2 = "actions.json"
 with open(json_file_path2, 'r') as file:
     actions_mapping = json.load(file)
 
+
+# Train class (train.py)
 @attach(DuploSpeaker, name='speaker')
 @attach(LED, name='led')
 @attach(DuploSpeedSensor, name='speed_sensor', capabilities=['sense_speed', 'sense_count'])
@@ -23,69 +25,53 @@ with open(json_file_path2, 'r') as file:
 class Train(DuploTrainHub):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.controller_queue = curio.Queue()
+        self.controller_queue = None
         self.pause = False
         self.waiting_for_movement = True
         self.speed = 0
         self.direction = "forward"
+        self.last_command_time = time.time()
+        self.command_cooldown = 0.1
 
-    """async def check_controller_queue(self):
-        "Check for any pending controller input"
-        if self.controller_queue:
-            try:
-                # Use a very short timeout to make it effectively non-blocking
-                print("In the controller queue")
-                buttons = await curio.timeout_after(0.1, self.controller_queue.get)
-                direction = buttons[0]  # up/down
-                turn = buttons[1]       # left/right
-                alt_buttons = buttons[2]  # other buttons
-                
-                logging.info(f"Processing controller input: {buttons}")
-                
-                if direction == "up":
-                    self.direction = "forward"
-                    await self.set_speed(75, 250, "manual control")
-                elif direction == "down":
-                    self.direction = "reverse"
-                    await self.set_speed(-75, 250, "manual control")
-                elif direction == "neutral":
-                    await self.set_speed(0, 250, "manual control")
-            except curio.TaskTimeout:
-                # This is expected when there's no input
-                pass
-            except Exception as e:
-                logging.error(f"Error processing controller input: {e}")"""
+    async def process_queue_item(self, buttons):
+        """Process a single queue item"""
+        try:
+            current_time = time.time()
+            if current_time - self.last_command_time < self.command_cooldown:
+                return
+            
+            self.last_command_time = current_time
+            print(f"🚂 Train processing: {buttons}")
+            
+            direction = buttons[0]
+            turn = buttons[1]
+            alt_buttons = buttons[2]
+            
+            if direction == "up":
+                self.direction = "forward"
+                await self.set_speed(75, 250, "manual control")
+                print("▶️ Forward")
+            elif direction == "down":
+                self.direction = "reverse"
+                await self.set_speed(-75, 250, "manual control")
+                print("◀️ Reverse")
+            elif direction == "neutral" and not self.waiting_for_movement:
+                await self.set_speed(0, 250, "manual control")
+                print("⏹️ Stop")
 
-  
-    async def check_controller_queue(self):
-        """Check for any pending controller input."""
-        while True:  # Keep checking the queue
-            if self.controller_queue:
-                try:
-                    # Fetch button press data with a short timeout
-                    buttons = await curio.timeout_after(0.1, self.controller_queue.get)
-                    print(f"🎮 Received from queue: {buttons}")  # ✅ Debug print
-                
-                    direction = buttons[0]  # up/down
-                    turn = buttons[1]       # left/right
-                    alt_buttons = buttons[2]  # other buttons
-                    
-                    logging.info(f"Processing controller input: {buttons}")
-                
-                    if direction == "up":
-                        self.direction = "forward"
-                        await self.set_speed(75, 250, "manual control")
-                    elif direction == "down":
-                        self.direction = "reverse"
-                        await self.set_speed(-75, 250, "manual control")
-                    elif direction == "neutral":
-                        await self.set_speed(0, 250, "manual control")
-
-                except curio.TaskTimeout:
-                    pass  # No input, continue checking
-                    print("⏳ Queue timeout: No input received in 0.1 sec")
-                except Exception as e:
-                    logging.error(f"Error processing controller input: {e}")
+            if isinstance(alt_buttons, list) and alt_buttons:
+                for button in alt_buttons:
+                    if button == "Red":
+                        await self.speaker.play_sound(DuploSpeaker.sounds["brake"])
+                        await self.set_speed(0, 250, "emergency stop")
+                        print("🛑 Emergency Stop")
+                    elif button == "Blue":
+                        await self.make_sound("horn")
+                        print("📢 Horn")
+                        
+        except Exception as e:
+            logging.error(f"Error processing queue item: {e}")
+            print(f"❌ Process error: {e}")
 
     async def speed_sensor_change(self):
         self.speed = self.speed_sensor.value[DuploSpeedSensor.capability.sense_speed]
@@ -106,26 +92,38 @@ class Train(DuploTrainHub):
         await self.speaker.play_sound(DuploSpeaker.sounds["horn"])
 
     async def run(self):
+        """Main run loop"""
+        print("🚂 Train starting...")
+        
         while True:
-            # Check for controller input
-            await self.check_controller_queue()
-            
-            if self.waiting_for_movement:
-                await sleep(.08)
-                if abs(self.speed) > 5:
-                    self.waiting_for_movement = False
-                    if self.speed < 0:
-                        self.direction = "reverse"
-                        print("Starting off in reverse.")
-                    else:
-                        self.direction = "forward"
-                    await self.led.set_color(Color.blue)
-                    await self.speaker.play_sound(DuploSpeaker.sounds["horn"])
-                    self.speed = abs(75)
-                    await self.set_speed(self.speed,110,"start")
-            elif not self.pause and abs(self.speed) < 10:
-                await self.led.set_color(Color.green)
-                print("Stopped, waiting for movement")
-                self.waiting_for_movement = True
-            await sleep(.1)
-         
+            try:
+                # Process any queued commands
+                if self.controller_queue and not self.controller_queue.empty():
+                    buttons = await self.controller_queue.get()
+                    print(f"📥 Got from queue: {buttons}")
+                    await self.process_queue_item(buttons)
+                
+                # Handle movement detection
+                if self.waiting_for_movement:
+                    if abs(self.speed) > 5:
+                        self.waiting_for_movement = False
+                        if self.speed < 0:
+                            self.direction = "reverse"
+                            print("🔄 Starting in reverse")
+                        else:
+                            self.direction = "forward"
+                        await self.led.set_color(Color.blue)
+                        await self.speaker.play_sound(DuploSpeaker.sounds["horn"])
+                        self.speed = abs(75)
+                        await self.set_speed(self.speed, 110, "start")
+                elif not self.pause and abs(self.speed) < 10:
+                    await self.led.set_color(Color.green)
+                    print("⏸️ Stopped, waiting for movement")
+                    self.waiting_for_movement = True
+                
+                await curio.sleep(0.1)
+                
+            except Exception as e:
+                logging.error(f"Error in run loop: {e}")
+                print(f"❌ Run error: {e}")
+                await curio.sleep(1)
