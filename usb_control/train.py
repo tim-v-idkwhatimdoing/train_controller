@@ -64,7 +64,7 @@ class Train(DuploTrainHub):
                 
 
             elif direction == "neutral" and not self.waiting_for_movement:
-                await self.set_speed(0, 3000, "manual control")
+                await self.set_speed(0, 250, "manual control")
                 print("⏹️ Stop")
 
             if isinstance(alt_buttons, list) and alt_buttons:
