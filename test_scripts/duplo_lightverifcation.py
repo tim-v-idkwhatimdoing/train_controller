@@ -26,7 +26,6 @@ import json
     none = 255
 """
 
-@attach(DuploVisionSensor, name='vision_sensor', capabilities=[('sense_rgb', 10)])
 @attach(LED, name='led')
 @attach(DuploSpeedSensor, name='speed_sensor', capabilities=['sense_speed', 'sense_count'])
 @attach(DuploTrainMotor, name='motor')
@@ -44,8 +43,9 @@ class Train(DuploTrainHub):
         self.last_purple_time = 0
         self.last_orange_time = 0
         self.cooldown = 2
-
+        self.color_list = ["white", "red", "green", "blue", "yellow", "purple", "pink", "black", "light_blue", "orange", "cyan"]
     #sounds = brake: 3, station: 5, water: 7, horn: 9, steam: 10
+    
 
     async def speed_sensor_change(self):
         self.speed = self.speed_sensor.value[DuploSpeedSensor.capability.sense_speed]
@@ -60,10 +60,7 @@ class Train(DuploTrainHub):
         
         await self.motor.ramp_speed(new_speed, ramp_time)
         await sleep(.2)
-
-    as
-
-
+    
     async def run(self):
         while True: 
             if self.waiting_for_movement:
@@ -76,9 +73,12 @@ class Train(DuploTrainHub):
                     else:
                         self.direction = "forward"
                     self.message_info(f"starting direction: {self.direction}, starting speed: {self.speed}")
-                    await self.led.set_color(Color.blue)
-                    self.speed = abs(self.speed)
-                    await self.set_speed(self.speed,110)
+                    for color in self.color_list:
+                        color_enum = getattr(Color, color, Color.none)
+                        await self.led.set_color(color_enum)
+                        print(f"Color changed to: {color_enum}")
+                        await sleep(2)
+                    await self.set_speed(50,110)
                     self.message_info(f"Direction is: {self.direction}")
             elif not self.pause and abs(self.speed) < 10:
                 await self.led.set_color(Color.green)
