@@ -61,7 +61,6 @@ class Train(DuploTrainHub):
                 self.waiting_for_movement = False
                 self.pause = False
                 await self.set_speed(100, 300, "manual control")
-                
 
             elif direction == "neutral" and not self.waiting_for_movement:
                 await self.set_speed(0, 250, "manual control")
@@ -72,7 +71,7 @@ class Train(DuploTrainHub):
                     #print(f"In process button queue action on: {button}")
                     if button == "Red":
                         await self.make_sound("brake")
-                        await self.set_speed(0, 250, "emergency stop")
+                        await self.set_speed(0, 150, "emergency stop")
                         print("🛑 Emergency Stop")
                     elif button == "Blue":
                         await self.make_sound("horn")
@@ -102,7 +101,7 @@ class Train(DuploTrainHub):
             new_speed = target_speed
         self.message_info(f"Direction: {self.direction}, Speed: {new_speed}, ")
         await self.motor.ramp_speed(new_speed, ramp_time)
-        await sleep(.25)
+        await sleep(.1)
 
     async def make_sound(self, horn_sound):
         current_time = time.time()
@@ -130,13 +129,12 @@ class Train(DuploTrainHub):
                         self.waiting_for_movement = False
                         if self.speed < 0:
                             self.direction = "reverse"
-                            print("🔄 Starting in reverse")
                         else:
                             self.direction = "forward"
                         await self.led.set_color(Color.green)
                         await self.set_speed(100, 110, "start")
+                        print(f"Starting, direction: {self.direction}")
                 elif not self.pause and abs(self.speed) < 10:
-                    await self.led.set_color(Color.green)
                     print("⏸️ Stopped, waiting for movement")
                     self.waiting_for_movement = True
                 
@@ -146,4 +144,3 @@ class Train(DuploTrainHub):
                 logging.error(f"Error in run loop: {e}")
                 print(f"❌ Run error: {e}")
                 await curio.sleep(1)
-
