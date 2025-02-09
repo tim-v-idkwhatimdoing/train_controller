@@ -70,6 +70,7 @@ class Train(DuploTrainHub):
                     self.color_iterator = 0
                 color_change = self.color_list[self.color_iterator]
                 await self.led.set_color(Color[color_change])
+                print(f"Color changed to: {color_change}")
 
             if turn == "left":
                 self.color_iterator -= 1
@@ -77,6 +78,7 @@ class Train(DuploTrainHub):
                     self.color_iterator = 10
                 color_change = self.color_list[self.color_iterator]
                 await self.led.set_color(Color[color_change])
+                print(f"Color changed to: {color_change}")
 
             if isinstance(alt_buttons, list) and alt_buttons:
                 for button in alt_buttons:
