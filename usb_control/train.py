@@ -43,11 +43,10 @@ class Train(DuploTrainHub):
             
             self.last_command_time = current_time
             print(f"Train processing: {buttons}")
-            
             direction = buttons[0]
             turn = buttons[1]
             alt_buttons = buttons[2]
-            print(turn)
+
             if direction == "up":
                 self.direction = "forward"
                 self.waiting_for_movement = False
@@ -115,9 +114,9 @@ class Train(DuploTrainHub):
         current_time = time.time()
         if not hasattr(self, "_last_sound_time"):
             self._last_sound_time = 0
-        if current_time - self._last_sound_time > 1.5 :  # Throttle to 0.5 seconds
-             self._last_sound_time = current_time
-        await self.speaker.play_sound(DuploSpeaker.sounds[horn_sound])
+        if current_time - self._last_sound_time > 1 :  # Throttle to 1 second
+            self._last_sound_time = current_time
+            await self.speaker.play_sound(DuploSpeaker.sounds[horn_sound])
 
     async def run(self):
         """Main run loop"""
