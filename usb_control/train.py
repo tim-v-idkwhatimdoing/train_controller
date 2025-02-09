@@ -16,7 +16,7 @@ json_file_path2 = "actions.json"
 with open(json_file_path2, 'r') as file:
     actions_mapping = json.load(file)
 
-
+#sounds = brake: 3, station: 5, water: 7, horn: 9, steam: 10
 # Train class (train.py)
 @attach(DuploSpeaker, name='speaker')
 @attach(LED, name='led')
@@ -32,7 +32,8 @@ class Train(DuploTrainHub):
         self.direction = "forward"
         self.last_command_time = time.time()
         self.command_cooldown = 0.1
-
+        self.color_list = ["red","white","blue","green","yellow"]
+        self.color_iterator = 0 
     async def process_queue_item(self, buttons):
         """Process a single queue item"""
         try:
@@ -41,34 +42,51 @@ class Train(DuploTrainHub):
                 return
             
             self.last_command_time = current_time
-            print(f"🚂 Train processing: {buttons}")
+            print(f"Train processing: {buttons}")
             
             direction = buttons[0]
+            #turn doesn't work ... its a train
             turn = buttons[1]
             alt_buttons = buttons[2]
             
             if direction == "up":
                 self.direction = "forward"
-                await self.set_speed(75, 250, "manual control")
+                self.waiting_for_movement = False
+                self.pause = False
+                await self.set_speed(100, 300, "manual control")
                 print("▶️ Forward")
+
             elif direction == "down":
                 self.direction = "reverse"
-                await self.set_speed(-75, 250, "manual control")
-                print("◀️ Reverse")
+                self.waiting_for_movement = False
+                self.pause = False
+                await self.set_speed(100, 300, "manual control")
+                
+
             elif direction == "neutral" and not self.waiting_for_movement:
-                await self.set_speed(0, 250, "manual control")
+                await self.set_speed(0, 3000, "manual control")
                 print("⏹️ Stop")
 
             if isinstance(alt_buttons, list) and alt_buttons:
                 for button in alt_buttons:
+                    #print(f"In process button queue action on: {button}")
                     if button == "Red":
-                        await self.speaker.play_sound(DuploSpeaker.sounds["brake"])
+                        await self.make_sound("brake")
                         await self.set_speed(0, 250, "emergency stop")
                         print("🛑 Emergency Stop")
                     elif button == "Blue":
                         await self.make_sound("horn")
                         print("📢 Horn")
+                    elif button == "Green":
+                        await self.make_sound("steam")
+                    elif button == "Yellow":
+                        if self.color_iterator > 4:
+                            self.color_iterator = 0
+                        color_change = self.color_list[self.color_iterator]
+                        await self.led.set_color(Color[color_change])
+                        self.color_iterator += 1
                         
+
         except Exception as e:
             logging.error(f"Error processing queue item: {e}")
             print(f"❌ Process error: {e}")
@@ -78,10 +96,13 @@ class Train(DuploTrainHub):
 
     async def set_speed(self, target_speed, ramp_time, description):
         #target speed should always be positive
-        # Change direction based on the current direction
-        self.message_info(f"Direction: {self.direction}, Speed: {target_speed} ")
-        await self.motor.ramp_speed(target_speed, 250)
-        await sleep(.5)
+        if self.direction == "reverse":
+            new_speed = -target_speed
+        else:
+            new_speed = target_speed
+        self.message_info(f"Direction: {self.direction}, Speed: {new_speed}, ")
+        await self.motor.ramp_speed(new_speed, ramp_time)
+        await sleep(.25)
 
     async def make_sound(self, horn_sound):
         current_time = time.time()
@@ -89,7 +110,7 @@ class Train(DuploTrainHub):
             self._last_sound_time = 0
         if current_time - self._last_sound_time > 0.5:  # Throttle to 0.5 seconds
              self._last_sound_time = current_time
-        await self.speaker.play_sound(DuploSpeaker.sounds["horn"])
+        await self.speaker.play_sound(DuploSpeaker.sounds[horn_sound])
 
     async def run(self):
         """Main run loop"""
@@ -112,10 +133,8 @@ class Train(DuploTrainHub):
                             print("🔄 Starting in reverse")
                         else:
                             self.direction = "forward"
-                        await self.led.set_color(Color.blue)
-                        await self.speaker.play_sound(DuploSpeaker.sounds["horn"])
-                        self.speed = abs(75)
-                        await self.set_speed(self.speed, 110, "start")
+                        await self.led.set_color(Color.green)
+                        await self.set_speed(100, 110, "start")
                 elif not self.pause and abs(self.speed) < 10:
                     await self.led.set_color(Color.green)
                     print("⏸️ Stopped, waiting for movement")
@@ -127,3 +146,4 @@ class Train(DuploTrainHub):
                 logging.error(f"Error in run loop: {e}")
                 print(f"❌ Run error: {e}")
                 await curio.sleep(1)
+

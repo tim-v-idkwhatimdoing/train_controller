@@ -1,9 +1,0 @@
-{
-  "red": "light_and_sound",
-  "white": "light_and_sound",
-  "green": "stop",
-  "blue": "max_speed",
-  "yellow": "slow_speed",
-  "orange": "max_speed",
-  "purple": "slow_speed"
-}
