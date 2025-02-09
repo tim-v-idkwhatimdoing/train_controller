@@ -32,7 +32,7 @@ class Train(DuploTrainHub):
         self.direction = "forward"
         self.last_command_time = time.time()
         self.command_cooldown = 0.1
-        self.color_list = ["red","white","blue","green","yellow"]
+        self.color_list = ["black", "white", "red", "green", "pink", "blue", "yellow", "purple", "light_blue", "orange", "cyan"]
         self.color_iterator = 0 
     async def process_queue_item(self, buttons):
         """Process a single queue item"""
@@ -43,12 +43,10 @@ class Train(DuploTrainHub):
             
             self.last_command_time = current_time
             print(f"Train processing: {buttons}")
-            
             direction = buttons[0]
-            #turn doesn't work ... its a train
             turn = buttons[1]
             alt_buttons = buttons[2]
-            
+
             if direction == "up":
                 self.direction = "forward"
                 self.waiting_for_movement = False
@@ -65,6 +63,22 @@ class Train(DuploTrainHub):
             elif direction == "neutral" and not self.waiting_for_movement:
                 await self.set_speed(0, 250, "manual control")
                 print("⏹️ Stop")
+           
+            if turn == "right":
+                self.color_iterator += 1
+                if self.color_iterator > 10:
+                    self.color_iterator = 0
+                color_change = self.color_list[self.color_iterator]
+                await self.led.set_color(Color[color_change])
+                print(f"Color changed to: {color_change}")
+
+            if turn == "left":
+                self.color_iterator -= 1
+                if self.color_iterator < 0:
+                    self.color_iterator = 10
+                color_change = self.color_list[self.color_iterator]
+                await self.led.set_color(Color[color_change])
+                print(f"Color changed to: {color_change}")
 
             if isinstance(alt_buttons, list) and alt_buttons:
                 for button in alt_buttons:
@@ -79,12 +93,7 @@ class Train(DuploTrainHub):
                     elif button == "Green":
                         await self.make_sound("steam")
                     elif button == "Yellow":
-                        if self.color_iterator > 4:
-                            self.color_iterator = 0
-                        color_change = self.color_list[self.color_iterator]
-                        await self.led.set_color(Color[color_change])
-                        self.color_iterator += 1
-                        
+                        await self.make_sound("station")
 
         except Exception as e:
             logging.error(f"Error processing queue item: {e}")
@@ -107,9 +116,9 @@ class Train(DuploTrainHub):
         current_time = time.time()
         if not hasattr(self, "_last_sound_time"):
             self._last_sound_time = 0
-        if current_time - self._last_sound_time > 0.5:  # Throttle to 0.5 seconds
-             self._last_sound_time = current_time
-        await self.speaker.play_sound(DuploSpeaker.sounds[horn_sound])
+        if current_time - self._last_sound_time > 1 :  # Throttle to 1 second
+            self._last_sound_time = current_time
+            await self.speaker.play_sound(DuploSpeaker.sounds[horn_sound])
 
     async def run(self):
         """Main run loop"""
@@ -131,7 +140,6 @@ class Train(DuploTrainHub):
                             self.direction = "reverse"
                         else:
                             self.direction = "forward"
-                        await self.led.set_color(Color.green)
                         await self.set_speed(100, 110, "start")
                         print(f"Starting, direction: {self.direction}")
                 elif not self.pause and abs(self.speed) < 10:
