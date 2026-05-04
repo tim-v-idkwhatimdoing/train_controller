@@ -55,7 +55,7 @@ class Train(DuploTrainHub):
                 self.waiting_for_movement = False
                 self.pause = False
                 await self.set_speed(100, 300, "manual control")
-                print("▶️ Forward")
+                print("Forward")
 
             elif direction == "down":
                 self.cruise_control = False
@@ -94,10 +94,10 @@ class Train(DuploTrainHub):
                             self.waiting_for_movement = False
                             self.pause = False
                             await self.set_speed(100, 300, "cruise control")
-                            print("🚀 Cruise Control ON (forward)")
+                            print("Cruise Control ON (forward)")
                         else:
                             await self.set_speed(0, 250, "cruise control off")
-                            print("⏹️ Cruise Control OFF")
+                            print("Cruise Control OFF")
                     elif button == "Right_Trigger":
                         self.cruise_control = not self.cruise_control
                         if self.cruise_control:
@@ -105,18 +105,18 @@ class Train(DuploTrainHub):
                             self.waiting_for_movement = False
                             self.pause = False
                             await self.set_speed(100, 300, "cruise control reverse")
-                            print("🚀 Cruise Control ON (reverse)")
+                            print("Cruise Control ON (reverse)")
                         else:
                             await self.set_speed(0, 250, "cruise control off")
-                            print("⏹️ Cruise Control OFF")
+                            print("Cruise Control OFF")
                     elif button == "Red":
                         self.cruise_control = False
                         await self.make_sound("brake")
                         await self.set_speed(0, 150, "emergency stop")
-                        print("🛑 Emergency Stop")
+                        print("Emergency Stop")
                     elif button == "Blue":
                         await self.make_sound("horn")
-                        print("📢 Horn")
+                        print("Horn")
                     elif button == "Green":
                         await self.make_sound("steam")
                     elif button == "Yellow":
@@ -124,7 +124,7 @@ class Train(DuploTrainHub):
 
         except Exception as e:
             logging.error(f"Error processing queue item: {e}")
-            print(f"❌ Process error: {e}")
+            print(f"Process error: {e}")
 
     async def speed_sensor_change(self):
         self.speed = self.speed_sensor.value[DuploSpeedSensor.capability.sense_speed]
@@ -149,14 +149,14 @@ class Train(DuploTrainHub):
 
     async def run(self):
         """Main run loop"""
-        print("🚂 Train starting...")
+        print("Train starting...")
         
         while True:
             try:
                 # Process any queued commands
                 if self.controller_queue and not self.controller_queue.empty():
                     buttons = await self.controller_queue.get()
-                    print(f"📥 Got from queue: {buttons}")
+                    print(f"Got from queue: {buttons}")
                     await self.process_queue_item(buttons)
                 
                 # Handle movement detection
@@ -170,12 +170,12 @@ class Train(DuploTrainHub):
                         await self.set_speed(100, 110, "start")
                         print(f"Starting, direction: {self.direction}")
                 elif not self.pause and abs(self.speed) < 10:
-                    print("⏸️ Stopped, waiting for movement")
+                    print("Stopped, waiting for movement")
                     self.waiting_for_movement = True
                 
                 await curio.sleep(0.1)
                 
             except Exception as e:
                 logging.error(f"Error in run loop: {e}")
-                print(f"❌ Run error: {e}")
+                print(f"Run error: {e}")
                 await curio.sleep(1)
