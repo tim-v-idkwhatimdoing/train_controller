@@ -33,7 +33,9 @@ class Train(DuploTrainHub):
         self.last_command_time = time.time()
         self.command_cooldown = 0.1
         self.color_list = ["black", "white", "red", "green", "pink", "blue", "yellow", "purple", "light_blue", "orange", "cyan"]
-        self.color_iterator = 0 
+        self.color_iterator = 0
+        self.cruise_control = False
+
     async def process_queue_item(self, buttons):
         """Process a single queue item"""
         try:
@@ -48,6 +50,7 @@ class Train(DuploTrainHub):
             alt_buttons = buttons[2]
 
             if direction == "up":
+                self.cruise_control = False
                 self.direction = "forward"
                 self.waiting_for_movement = False
                 self.pause = False
@@ -55,12 +58,13 @@ class Train(DuploTrainHub):
                 print("▶️ Forward")
 
             elif direction == "down":
+                self.cruise_control = False
                 self.direction = "reverse"
                 self.waiting_for_movement = False
                 self.pause = False
                 await self.set_speed(100, 300, "manual control")
 
-            elif direction == "neutral" and not self.waiting_for_movement:
+            elif direction == "neutral" and not self.waiting_for_movement and not self.cruise_control:
                 await self.set_speed(0, 250, "manual control")
                 print("⏹️ Stop")
            
@@ -83,7 +87,30 @@ class Train(DuploTrainHub):
             if isinstance(alt_buttons, list) and alt_buttons:
                 for button in alt_buttons:
                     #print(f"In process button queue action on: {button}")
-                    if button == "Red":
+                    if button == "Left_Trigger":
+                        self.cruise_control = not self.cruise_control
+                        if self.cruise_control:
+                            self.direction = "forward"
+                            self.waiting_for_movement = False
+                            self.pause = False
+                            await self.set_speed(100, 300, "cruise control")
+                            print("🚀 Cruise Control ON (forward)")
+                        else:
+                            await self.set_speed(0, 250, "cruise control off")
+                            print("⏹️ Cruise Control OFF")
+                    elif button == "Right_Trigger":
+                        self.cruise_control = not self.cruise_control
+                        if self.cruise_control:
+                            self.direction = "reverse"
+                            self.waiting_for_movement = False
+                            self.pause = False
+                            await self.set_speed(100, 300, "cruise control reverse")
+                            print("🚀 Cruise Control ON (reverse)")
+                        else:
+                            await self.set_speed(0, 250, "cruise control off")
+                            print("⏹️ Cruise Control OFF")
+                    elif button == "Red":
+                        self.cruise_control = False
                         await self.make_sound("brake")
                         await self.set_speed(0, 150, "emergency stop")
                         print("🛑 Emergency Stop")

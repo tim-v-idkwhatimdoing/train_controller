@@ -11,7 +11,7 @@ controller_queue = curio.Queue()
 
 async def handle_controller_input(buttons):
     """Async function to handle controller input"""
-    print(f"🎮 Adding to queue: {buttons}")
+    print(f"Adding to queue: {buttons}")
     print(f"Queue size before add: {controller_queue.qsize()}")
     await controller_queue.put(buttons)
     print(f"Queue size after add: {controller_queue.qsize()}")
@@ -29,9 +29,9 @@ async def monitor_queue():
     """Monitor the controller queue"""
     while True:
         try:
-            print(f"📊 Queue Monitor - Size: {controller_queue.qsize()}")
+            print(f"Queue Monitor - Size: {controller_queue.qsize()}")
             if not controller_queue.empty():
-                print(f"📦 Next item: {controller_queue._queue[0]}")
+                print(f"Next item: {controller_queue._queue[0]}")
         except Exception as e:
             logging.error(f"Error monitoring queue: {e}")
         await curio.sleep(1)
